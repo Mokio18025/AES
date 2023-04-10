@@ -106,6 +106,16 @@ void Encrypt(byte* in, byte* out)
         out[4*i+3] = (byte)State[i];
     }
 }
+
+void print_hex(unsigned char *str, int len) {
+    int i;
+    for(i = 0; i < len; i++) {
+        printf("%02x", str[i]);
+    }
+    printf("\n");
+}
+
+
 int main()
 {
     byte key[32];
