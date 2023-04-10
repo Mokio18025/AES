@@ -10,10 +10,13 @@ byte S[256] = {
     // S-box
 };
 byte InvS[256] = {
-    // Inverse S-box
+    // 逆S-box
 };
 word Rcon[Nr] = {
-    // Rcon
+    0x01000000, 0x02000000, 0x04000000, 0x08000000,
+    0x10000000, 0x20000000, 0x40000000, 0x80000000,
+    0x1b000000, 0x36000000, 0x6c000000, 0xd8000000,
+    0xab000000, 0x4d000000
 };
 word Key[Nb*(Nr+1)] = {0};
 word State[Nb*Nb] = {0};
@@ -118,23 +121,48 @@ void print_hex(unsigned char *str, int len) {
 
 int main()
 {
-    byte key[32];
-    byte in[16];
-    byte out[16];
-    int keysize, i;
+    int i, keysize;
+    char keystr[33]; // 32 hex digits + null terminator
+    // Read plaintext from user input
     printf("Enter plaintext (16 bytes): ");
-    for (i = 0; i < 16; i++)
-        scanf("%c", &in[i]);
+    scanf("%32s", plainstr);
+    // Verify that plaintext string is a valid hex string
+    for (i = 0; i < 32; i++) {
+        if (!isxdigit(plainstr[i])) {
+            printf("Error: plaintext must be a valid hex string\n");
+            return 1;
+        }
+    }
+    // Convert plaintext string to byte array
+    byte plain[16];
+    for (i = 0; i < 16; i++) {
+        sscanf(plainstr + 2*i, "%2hhx", &plain[i]);
+    }
+    // Read key size and key string from user input
     printf("Enter key size (128, 192, or 256 bits): ");
     scanf("%d", &keysize);
     printf("Enter key (in hex): ");
-    for (i = 0; i < keysize/8; i++)
-        scanf("%2hhx", &key[i]);
-    KeyExpansion(key, keysize/8);
-    Encrypt(in, out);
-    printf("Cipher text: ");
-    for (i = 0; i < 16; i++)
-        printf("%02x", out[i]);
+    scanf("%32s", keystr);
+    // Verify that key string is a valid hex string
+    for (i = 0; i < 32; i++) {
+        if (!isxdigit(keystr[i])) {
+            printf("Error: key must be a valid hex string\n");
+            return 1;
+        }
+    }
+    // Convert key string to byte array
+    byte key[32];
+    for (i = 0; i < 16; i++) {
+        sscanf(keystr + 2*i, "%2hhx", &key[i]);
+    }
+    // Perform AES encryption
+    AES_Init(key, keysize);
+    AES_Encrypt(plain);
+    // Print ciphertext
+    printf("Ciphertext: ");
+    for (i = 0; i < 16; i++) {
+        printf("%02x", plain[i]);
+    }
     printf("\n");
     return 0;
 }
