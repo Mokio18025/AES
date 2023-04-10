@@ -3,20 +3,23 @@
 #include <string.h>
 #define Nb 4
 #define Nk 8
-#define Nr 14
+#define Nr 10
 typedef unsigned char byte;
 typedef unsigned int word;
 byte S[256] = {
-    // S-box
+    0x63, 0x7c, 0x77, 0x7b, 0xf2, 0x6b, 0x6f, 0xc5, 0x30, 0x01, 0x67, 0x2b, 0xfe, 0xd7, 0xab, 0x76,
+    0xca, 0x82, 0xc9, 0x7d, 0xfa, 0x59, 0x47, 0xf0, 0xad, 0xd4, 0xa2, 0xaf, 0x9c, 0xa4, 0x72, 0xc0,
+    // 后面省略
 };
 byte InvS[256] = {
-    // 逆S-box
+    0x52, 0x09, 0x6a, 0xd5, 0x30, 0x36, 0xa5, 0x38, 0xbf, 0x40, 0xa3, 0x9e, 0x81, 0xf3, 0xd7, 0xfb,
+    0x7c, 0xe3, 0x39, 0x82, 0x9b, 0x2f, 0xff, 0x87, 0x34, 0x8e, 0x43, 0x44, 0xc4, 0xde, 0xe9, 0xcb,
+    // 后面省略
 };
 word Rcon[Nr] = {
     0x01000000, 0x02000000, 0x04000000, 0x08000000,
     0x10000000, 0x20000000, 0x40000000, 0x80000000,
-    0x1b000000, 0x36000000, 0x6c000000, 0xd8000000,
-    0xab000000, 0x4d000000
+    0x1b000000, 0x36000000
 };
 word Key[Nb*(Nr+1)] = {0};
 word State[Nb*Nb] = {0};
@@ -53,15 +56,18 @@ void MixColumns()
 {
     int i;
     byte a, b, c, d;
+    word temp;
     for (i = 0; i < Nb; i++) {
         a = State[4*i];
         b = State[4*i+1];
         c = State[4*i+2];
         d = State[4*i+3];
-        State[4*i]   = (byte)(0x02*a + 0x03*b + c      + d      ) % 0x100;
-        State[4*i+1] = (byte)(a      + 0x02*b + 0x03*c + d      ) % 0x100;
-        State[4*i+2] = (byte)(a      + b      + 0x02*c + 0x03*d) % 0x100;
-        State[4*i+3] = (byte)(0x03*a + c      + d      + 0x02*d) % 0x100;
+        temp = (word)a << 24 | (word)b << 16 | (word)c << 8 | (word)d;
+        temp = (0x02 * ((temp >> 24) & 0xff) + 0x03 * ((temp >> 16) & 0xff) + ((temp >> 8) & 0xff) + (temp & 0xff)) % 0x100;
+        State[4*i]   = (byte)(temp >> 24);
+        State[4*i+1] = (byte)(temp >> 16);
+        State[4*i+2] = (byte)(temp >> 8);
+        State[4*i+3] = (byte)temp;
     }
 }
 void AddRoundKey(int round)
@@ -79,8 +85,7 @@ void KeyExpansion(byte* key, int keysize)
     for (i = Nk; i < Nb*(Nr+1); i++) {
         temp = Key[i-1];
         if (i % Nk == 0) {
-            temp = (S[(temp>>16)&0xff]<<24) | (S[(temp>>8)&0xff]<<16) | (S[temp&0xff]<<8) | S[(temp>>24)&0xff];
-            temp ^= Rcon[(i/Nk)-1]<<24;
+            temp = ((S[(temp>>16)&0xff]<<24) | (S[(temp>>8)&0xff]<<16) | (S[(temp>>0)&0xff]<<8) | (S[(temp>>24)&0xff]<<0)) ^ Rcon[i/Nk];
         } else if (Nk > 6 && i % Nk == 4) {
             temp = (S[(temp>>24)&0xff]<<24) | (S[(temp>>16)&0xff]<<16) | (S[(temp>>8)&0xff]<<8) | S[temp&0xff];
         }
