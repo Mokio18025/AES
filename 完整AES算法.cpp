@@ -3,23 +3,17 @@
 #include <string.h>
 #define Nb 4
 #define Nk 8
-#define Nr 10
+#define Nr 14
 typedef unsigned char byte;
 typedef unsigned int word;
 byte S[256] = {
-    0x63, 0x7c, 0x77, 0x7b, 0xf2, 0x6b, 0x6f, 0xc5, 0x30, 0x01, 0x67, 0x2b, 0xfe, 0xd7, 0xab, 0x76,
-    0xca, 0x82, 0xc9, 0x7d, 0xfa, 0x59, 0x47, 0xf0, 0xad, 0xd4, 0xa2, 0xaf, 0x9c, 0xa4, 0x72, 0xc0,
-    // 后面省略
+    // S-box
 };
 byte InvS[256] = {
-    0x52, 0x09, 0x6a, 0xd5, 0x30, 0x36, 0xa5, 0x38, 0xbf, 0x40, 0xa3, 0x9e, 0x81, 0xf3, 0xd7, 0xfb,
-    0x7c, 0xe3, 0x39, 0x82, 0x9b, 0x2f, 0xff, 0x87, 0x34, 0x8e, 0x43, 0x44, 0xc4, 0xde, 0xe9, 0xcb,
-    // 后面省略
+    // Inverse S-box
 };
 word Rcon[Nr] = {
-    0x01000000, 0x02000000, 0x04000000, 0x08000000,
-    0x10000000, 0x20000000, 0x40000000, 0x80000000,
-    0x1b000000, 0x36000000
+    // Rcon
 };
 word Key[Nb*(Nr+1)] = {0};
 word State[Nb*Nb] = {0};
@@ -56,18 +50,15 @@ void MixColumns()
 {
     int i;
     byte a, b, c, d;
-    word temp;
     for (i = 0; i < Nb; i++) {
         a = State[4*i];
         b = State[4*i+1];
         c = State[4*i+2];
         d = State[4*i+3];
-        temp = (word)a << 24 | (word)b << 16 | (word)c << 8 | (word)d;
-        temp = (0x02 * ((temp >> 24) & 0xff) + 0x03 * ((temp >> 16) & 0xff) + ((temp >> 8) & 0xff) + (temp & 0xff)) % 0x100;
-        State[4*i]   = (byte)(temp >> 24);
-        State[4*i+1] = (byte)(temp >> 16);
-        State[4*i+2] = (byte)(temp >> 8);
-        State[4*i+3] = (byte)temp;
+        State[4*i]   = (byte)(0x02*a + 0x03*b + c      + d      ) % 0x100;
+        State[4*i+1] = (byte)(a      + 0x02*b + 0x03*c + d      ) % 0x100;
+        State[4*i+2] = (byte)(a      + b      + 0x02*c + 0x03*d) % 0x100;
+        State[4*i+3] = (byte)(0x03*a + c      + d      + 0x02*d) % 0x100;
     }
 }
 void AddRoundKey(int round)
@@ -85,7 +76,8 @@ void KeyExpansion(byte* key, int keysize)
     for (i = Nk; i < Nb*(Nr+1); i++) {
         temp = Key[i-1];
         if (i % Nk == 0) {
-            temp = ((S[(temp>>16)&0xff]<<24) | (S[(temp>>8)&0xff]<<16) | (S[(temp>>0)&0xff]<<8) | (S[(temp>>24)&0xff]<<0)) ^ Rcon[i/Nk];
+            temp = (S[(temp>>16)&0xff]<<24) | (S[(temp>>8)&0xff]<<16) | (S[temp&0xff]<<8) | S[(temp>>24)&0xff];
+            temp ^= Rcon[(i/Nk)-1]<<24;
         } else if (Nk > 6 && i % Nk == 4) {
             temp = (S[(temp>>24)&0xff]<<24) | (S[(temp>>16)&0xff]<<16) | (S[(temp>>8)&0xff]<<8) | S[temp&0xff];
         }
@@ -114,57 +106,25 @@ void Encrypt(byte* in, byte* out)
         out[4*i+3] = (byte)State[i];
     }
 }
-
-void print_hex(unsigned char *str, int len) {
-    int i;
-    for(i = 0; i < len; i++) {
-        printf("%02x", str[i]);
-    }
-    printf("\n");
-}
-
-
 int main()
 {
-    int i, keysize;
-    char keystr[33]; 
+    byte key[32];
+    byte in[16];
+    byte out[16];
+    int keysize, i;
     printf("Enter plaintext (16 bytes): ");
-    scanf("%32s", plainstr);
-    for (i = 0; i < 32; i++) {
-        if (!isxdigit(plainstr[i])) {
-            printf("Error: plaintext must be a valid hex string\n");
-            return 1;
-        }
-    }
-
-    byte plain[16];
-    for (i = 0; i < 16; i++) {
-        sscanf(plainstr + 2*i, "%2hhx", &plain[i]);
-    }
- 
+    for (i = 0; i < 16; i++)
+        scanf("%c", &in[i]);
     printf("Enter key size (128, 192, or 256 bits): ");
     scanf("%d", &keysize);
     printf("Enter key (in hex): ");
-    scanf("%32s", keystr);
-
-    for (i = 0; i < 32; i++) {
-        if (!isxdigit(keystr[i])) {
-            printf("Error: key must be a valid hex string\n");
-            return 1;
-        }
-    }
-
-    byte key[32];
-    for (i = 0; i < 16; i++) {
-        sscanf(keystr + 2*i, "%2hhx", &key[i]);
-    }
-    AES_Init(key, keysize);
-    AES_Encrypt(plain);
-
-    printf("Ciphertext: ");
-    for (i = 0; i < 16; i++) {
-        printf("%02x", plain[i]);
-    }
+    for (i = 0; i < keysize/8; i++)
+        scanf("%2hhx", &key[i]);
+    KeyExpansion(key, keysize/8);
+    Encrypt(in, out);
+    printf("Cipher text: ");
+    for (i = 0; i < 16; i++)
+        printf("%02x", out[i]);
     printf("\n");
     return 0;
 }
